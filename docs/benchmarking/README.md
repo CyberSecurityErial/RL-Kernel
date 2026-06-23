@@ -10,6 +10,7 @@ python scripts/run_profile_suite.py --output reports/profile.csv
 python benchmarks/profiler.py --format json --output reports/profile.json
 python benchmarks/benchmark_sampling.py
 python benchmarks/benchmark_grpo_op.py
+python benchmarks/benchmark_ce_prefetch_pipeline.py --copy-mib 64,256,512 --gemm-size 4096,8192
 python scripts/run_perf.py
 ```
 
@@ -48,6 +49,31 @@ python scripts/run_profile_suite.py \
 
 When adding a new operator, document the benchmark command on the operator page and keep
 the tested shapes close to the target RL workload.
+
+## Copy-Engine Prefetch Overlap
+
+`benchmarks/benchmark_ce_prefetch_pipeline.py` measures whether peer-to-peer GPU copies can be
+hidden behind local GEMM work on another CUDA stream. It is meant for weight, KV, or activation
+staging experiments where the next shard can be prefetched while the current shard is computed.
+
+Example:
+
+```bash
+python benchmarks/benchmark_ce_prefetch_pipeline.py \
+  --src-device 0 \
+  --dst-device 1 \
+  --copy-mib 64,256,512 \
+  --gemm-size 4096,8192 \
+  --gemm-iters 1,8 \
+  --output reports/ce_prefetch.jsonl
+```
+
+Each JSONL row reports copy-only latency, compute-only latency, overlapped wall time,
+`copy_hidden_fraction`, `compute_slowdown_pct`, and `speedup_vs_serial`. The useful case is a
+high hidden fraction with low compute slowdown; small compute windows are expected to expose most
+of the copy time.
+
+Detailed local experiment notes are in [ce-prefetch-overlap.md](ce-prefetch-overlap.md).
 
 ## Adding Workloads
 
