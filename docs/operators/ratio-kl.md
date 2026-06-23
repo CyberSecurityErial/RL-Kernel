@@ -85,6 +85,9 @@ python benchmarks/benchmark_ratio_kl.py
 python benchmarks/benchmark_ratio_kl.py --g-sizes 8 --completion-lens 512 --vocab-sizes 32768,131072
 ```
 
+The Triton wrapper passes `attention_mask` in its input dtype. Standard RL
+batches use bool masks, and the kernel only needs a nonzero check per row.
+
 Indicative forward-only results (fp16, `B=16`, `T=512`):
 
 | vocab | active tokens | forward speedup | peak VRAM (native → Triton) |

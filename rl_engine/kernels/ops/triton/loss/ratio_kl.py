@@ -143,7 +143,8 @@ class _RatioKLFunction(torch.autograd.Function):
         ref = ref_logits.contiguous().view(-1, V)
         n_rows = pol.shape[0]
         act = action_ids.contiguous().view(-1).clamp(0, V - 1).to(torch.int64)
-        mask = attention_mask.contiguous().view(-1).to(torch.int32)
+        # The kernels only check whether each mask lane is nonzero.
+        mask = attention_mask.contiguous().view(-1)
         old = old_logps.contiguous().view(-1).to(torch.float32)
 
         ratio = torch.empty(n_rows, device=pol.device, dtype=torch.float32)
