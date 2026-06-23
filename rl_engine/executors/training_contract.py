@@ -110,23 +110,34 @@ class RolloutBatchMixin:
             min(self.config.completion_len, max(len(group) for group in token_groups)),
         )
         batch_size = len(token_groups)
+        # On CUDA, building each row directly creates many small H2D copies.
+        # Pack the ragged payload on CPU, then move the dense tensors once.
+        staging_device = (
+            torch.device("cpu") if self.device.type == "cuda" else self.device
+        )
         token_ids = torch.zeros(
             (batch_size, completion_len),
-            device=self.device,
+            device=staging_device,
             dtype=torch.long,
         )
         completion_mask = torch.zeros(
             (batch_size, completion_len),
-            device=self.device,
+            device=staging_device,
             dtype=torch.bool,
         )
         for row, group in enumerate(token_groups):
-            clipped = [int(token) % self.config.vocab_size for token in group[:completion_len]]
+            clipped = [
+                int(token) % self.config.vocab_size for token in group[:completion_len]
+            ]
             if not clipped:
                 continue
-            values = torch.tensor(clipped, device=self.device, dtype=torch.long)
+            values = torch.as_tensor(clipped, device=staging_device, dtype=torch.long)
             token_ids[row, : values.numel()] = values
             completion_mask[row, : values.numel()] = True
+
+        if token_ids.device != self.device:
+            token_ids = token_ids.to(self.device)
+            completion_mask = completion_mask.to(self.device)
 
         prompt_tokens = torch.zeros(
             (batch_size, self.config.prompt_len),
@@ -258,7 +269,9 @@ def _candidate_token_ids(candidate: Any) -> list[int]:
         return []
     if isinstance(candidate, Mapping):
         nested_outputs = candidate.get("outputs")
-        if isinstance(nested_outputs, Sequence) and not isinstance(nested_outputs, (str, bytes)):
+        if isinstance(nested_outputs, Sequence) and not isinstance(
+            nested_outputs, (str, bytes)
+        ):
             for nested in nested_outputs:
                 token_ids = _candidate_token_ids(nested)
                 if token_ids:
@@ -270,7 +283,9 @@ def _candidate_token_ids(candidate: Any) -> list[int]:
     if value is not None:
         return _copy_int_list(value)
     nested_outputs = getattr(candidate, "outputs", None)
-    if isinstance(nested_outputs, Sequence) and not isinstance(nested_outputs, (str, bytes)):
+    if isinstance(nested_outputs, Sequence) and not isinstance(
+        nested_outputs, (str, bytes)
+    ):
         for nested in nested_outputs:
             token_ids = _candidate_token_ids(nested)
             if token_ids:

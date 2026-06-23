@@ -10,6 +10,7 @@ python scripts/run_profile_suite.py --output reports/profile.csv
 python benchmarks/profiler.py --format json --output reports/profile.json
 python benchmarks/benchmark_sampling.py
 python benchmarks/benchmark_grpo_op.py
+python benchmarks/benchmark_rollout_payload_staging.py --batch-size 1024,4096,8192
 python scripts/run_perf.py
 ```
 
@@ -48,6 +49,26 @@ python scripts/run_profile_suite.py \
 
 When adding a new operator, document the benchmark command on the operator page and keep
 the tested shapes close to the target RL workload.
+
+## Rollout Payload Staging
+
+`benchmarks/benchmark_rollout_payload_staging.py` compares row-by-row GPU staging of rollout
+token ids with CPU-side contiguous packing followed by a single device transfer. This targets the
+training handoff path where generated token ids arrive as Python payloads and must become dense
+training tensors.
+
+Example:
+
+```bash
+python benchmarks/benchmark_rollout_payload_staging.py \
+  --device cuda \
+  --batch-size 1024,4096,8192 \
+  --completion-len 128 \
+  --output reports/rollout_payload_staging.jsonl
+```
+
+Detailed local experiment notes are in
+[rollout-payload-staging.md](rollout-payload-staging.md).
 
 ## Adding Workloads
 
